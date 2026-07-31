@@ -2,20 +2,34 @@
 
 #include "../digit_font.h"
 #include "../settings/app_settings.h"
+#include "../symbol_font.h"
 
 #define INFO_Y 209
 
-#define SMALL_DIGIT_WIDTH 16
-#define SMALL_DIGIT_HEIGHT 14
+#define SMALL_GLYPH_WIDTH 16
+#define SMALL_GLYPH_HEIGHT 14
+
 #define SMALL_DIGIT_SPACING 2
 
 #define DATE_X 7
 #define DATE_GROUP_SPACING 8
 
 #define TEMPERATURE_RIGHT_X 195
-#define SYMBOL_SPACING 8
 
-#define LETTER_C_WIDTH 16
+/*
+ * Das Gradzeichen sitzt rechts in seinem
+ * 24-Pixel-Quellfeld.
+ *
+ * Durch die Überlappung erscheint es mit etwa
+ * vier sichtbaren Pixeln Abstand zur Temperatur.
+ */
+#define DEGREE_CELL_OVERLAP 8
+
+/*
+ * Sichtbarer Abstand zwischen Gradzeichen und C.
+ */
+#define DEGREE_C_SPACING 3
+
 #define MINUS_WIDTH 10
 
 static Layer *s_info_layer;
@@ -26,104 +40,46 @@ static bool s_time_available;
 static int32_t s_last_weather_slot = -1;
 
 
-/*
- * Kleines C im gleichen kantigen Pixelstil.
- */
-static const uint16_t LETTER_C_ROWS[
-    SMALL_DIGIT_HEIGHT
-] = {
-  0x3FFC,
-  0x7FFE,
-  0xF000,
-  0xE000,
-  0xE000,
-  0xE000,
-  0xE000,
-  0xE000,
-  0xE000,
-  0xE000,
-  0xE000,
-  0xF000,
-  0x7FFE,
-  0x3FFC
-};
-
-
-static bool source_pixel_is_set(
-    int digit,
-    int source_x,
-    int source_y
-) {
-  if (
-      digit < 0
-      || digit >= PPF_DIGIT_COUNT
-      || source_x < 0
-      || source_x >= PPF_DIGIT_WIDTH
-      || source_y < 0
-      || source_y >= PPF_DIGIT_HEIGHT
-  ) {
-    return false;
-  }
-
-  const uint32_t row_bits =
-      PPF_DIGITS[digit][source_y];
-
-  const uint32_t mask =
-      1u
-      << (
-        PPF_DIGIT_WIDTH
-        - 1
-        - source_x
-      );
-
-  return (row_bits & mask) != 0;
-}
-
-
-/*
- * Verkleinert eine Zeile deiner 24×21-Pixelschrift
- * auf 16×14 Pixel.
- *
- * Dabei werden keine Pebble-Systemfonts verwendet.
- */
-static uint16_t scaled_digit_row(
-    int digit,
+static uint16_t scaled_glyph_row(
+    const uint32_t *source_rows,
+    int source_width,
+    int source_height,
     int output_y
 ) {
   uint16_t output_bits = 0;
 
   const int source_y_start =
       output_y
-      * PPF_DIGIT_HEIGHT
-      / SMALL_DIGIT_HEIGHT;
+      * source_height
+      / SMALL_GLYPH_HEIGHT;
 
   const int source_y_end =
       (
         (output_y + 1)
-        * PPF_DIGIT_HEIGHT
-        + SMALL_DIGIT_HEIGHT
+        * source_height
+        + SMALL_GLYPH_HEIGHT
         - 1
       )
-      / SMALL_DIGIT_HEIGHT;
+      / SMALL_GLYPH_HEIGHT;
 
   for (
       int output_x = 0;
-      output_x < SMALL_DIGIT_WIDTH;
+      output_x < SMALL_GLYPH_WIDTH;
       ++output_x
   ) {
     const int source_x_start =
         output_x
-        * PPF_DIGIT_WIDTH
-        / SMALL_DIGIT_WIDTH;
+        * source_width
+        / SMALL_GLYPH_WIDTH;
 
     const int source_x_end =
         (
           (output_x + 1)
-          * PPF_DIGIT_WIDTH
-          + SMALL_DIGIT_WIDTH
+          * source_width
+          + SMALL_GLYPH_WIDTH
           - 1
         )
-        / SMALL_DIGIT_WIDTH;
+        / SMALL_GLYPH_WIDTH;
 
     bool pixel_is_set = false;
 
@@ -133,18 +89,23 @@ static uint16_t scaled_digit_row(
             && !pixel_is_set;
         ++source_y
     ) {
+      const uint32_t source_bits =
+          source_rows[source_y];
+
       for (
           int source_x = source_x_start;
           source_x < source_x_end;
           ++source_x
       ) {
-        if (
-            source_pixel_is_set(
-                digit,
-                source_x,
-                source_y
-            )
-        ) {
+        const uint32_t mask =
+            1u
+            << (
+              source_width
+              - 1
+              - source_x
+            );
+
+        if (source_bits & mask) {
           pixel_is_set = true;
           break;
         }
@@ -155,7 +116,68 @@ static uint16_t scaled_digit_row(
       output_bits |=
           1u
           << (
-            SMALL_DIGIT_WIDTH
+            SMALL_GLYPH_WIDTH
+            - 1
+            - output_x
+          );
+    }
+  }
+
+  return output_bits;
+}
+
+
+/*
+ * Nearest-Neighbour-Skalierung für sehr kleine,
+ * hohle Symbole.
+ *
+ * Die normale Flächenskalierung ist für die Ziffern
+ * gut, würde aber das Loch im Gradzeichen auffüllen.
+ */
+static uint16_t scaled_glyph_row_nearest(
+    const uint32_t *source_rows,
+    int source_width,
+    int source_height,
+    int output_y
+) {
+  uint16_t output_bits = 0;
+
+  const int source_y =
+      (
+        (output_y * 2 + 1)
+        * source_height
+      )
+      / (
+        SMALL_GLYPH_HEIGHT * 2
+      );
+
+  for (
+      int output_x = 0;
+      output_x < SMALL_GLYPH_WIDTH;
+      ++output_x
+  ) {
+    const int source_x =
+        (
+          (output_x * 2 + 1)
+          * source_width
+        )
+        / (
+          SMALL_GLYPH_WIDTH * 2
+        );
+
+    const uint32_t mask =
+        1u
+        << (
+          source_width
+          - 1
+          - source_x
+        );
+
+    if (source_rows[source_y] & mask) {
+      output_bits |=
+          1u
+          << (
+            SMALL_GLYPH_WIDTH
             - 1
             - output_x
           );
@@ -223,24 +245,28 @@ static void draw_pixel_row(
 }
 
 
-static void draw_small_digit(
+static void draw_small_glyph(
     GContext *ctx,
-    int digit,
+    const uint32_t *source_rows,
+    int source_width,
+    int source_height,
     int origin_x,
     int origin_y
 ) {
   for (
       int row = 0;
-      row < SMALL_DIGIT_HEIGHT;
+      row < SMALL_GLYPH_HEIGHT;
       ++row
   ) {
     draw_pixel_row(
         ctx,
-        scaled_digit_row(
-            digit,
+        scaled_glyph_row(
+            source_rows,
+            source_width,
+            source_height,
             row
         ),
-        SMALL_DIGIT_WIDTH,
+        SMALL_GLYPH_WIDTH,
         origin_x,
         origin_y + row
     );
@@ -248,24 +274,79 @@ static void draw_small_digit(
 }
 
 
-static void draw_letter_c(
+static void draw_small_digit(
     GContext *ctx,
+    int digit,
     int origin_x,
     int origin_y
 ) {
-  for (
-      int row = 0;
-      row < SMALL_DIGIT_HEIGHT;
-      ++row
+  if (
+      digit < 0
+      || digit >= PPF_DIGIT_COUNT
   ) {
-    draw_pixel_row(
-        ctx,
-        LETTER_C_ROWS[row],
-        LETTER_C_WIDTH,
-        origin_x,
-        origin_y + row
-    );
+    return;
   }
+
+  draw_small_glyph(
+      ctx,
+      PPF_DIGITS[digit],
+      PPF_DIGIT_WIDTH,
+      PPF_DIGIT_HEIGHT,
+      origin_x,
+      origin_y
+  );
+}
+
+
+static void draw_small_symbol(
+    GContext *ctx,
+    PpfSymbol symbol,
+    int origin_x,
+    int origin_y
+) {
+  if (
+      (unsigned int)symbol
+          >= PPF_SYMBOL_COUNT
+  ) {
+    return;
+  }
+
+  /*
+   * Das kleine Gradzeichen braucht eine punktgenaue
+   * Skalierung, damit sein transparentes Loch erhalten
+   * bleibt.
+   */
+  if (symbol == PPF_SYMBOL_DEGREE) {
+    for (
+        int row = 0;
+        row < SMALL_GLYPH_HEIGHT;
+        ++row
+    ) {
+      draw_pixel_row(
+          ctx,
+          scaled_glyph_row_nearest(
+              PPF_SYMBOLS[symbol],
+              PPF_SYMBOL_WIDTH,
+              PPF_SYMBOL_HEIGHT,
+              row
+          ),
+          SMALL_GLYPH_WIDTH,
+          origin_x,
+          origin_y + row
+      );
+    }
+
+    return;
+  }
+
+  draw_small_glyph(
+      ctx,
+      PPF_SYMBOLS[symbol],
+      PPF_SYMBOL_WIDTH,
+      PPF_SYMBOL_HEIGHT,
+      origin_x,
+      origin_y
+  );
 }
 
 
@@ -296,7 +377,7 @@ static int number_width(
   }
 
   return (
-      digit_count * SMALL_DIGIT_WIDTH
+      digit_count * SMALL_GLYPH_WIDTH
       + (
         digit_count - 1
       ) * SMALL_DIGIT_SPACING
@@ -339,7 +420,7 @@ static int draw_number(
     );
 
     x +=
-        SMALL_DIGIT_WIDTH
+        SMALL_GLYPH_WIDTH
         + SMALL_DIGIT_SPACING;
 
     divisor /= 10;
@@ -380,6 +461,53 @@ static void draw_date(
 }
 
 
+/*
+ * Zeichnet °C direkt hinter die Temperatur.
+ *
+ * Das Gradzeichen wird zuerst gezeichnet,
+ * anschließend das C.
+ */
+static int draw_celsius(
+    GContext *ctx,
+    int number_end_x,
+    int origin_y
+) {
+  const int degree_x =
+      number_end_x
+      - DEGREE_CELL_OVERLAP;
+
+  draw_small_symbol(
+      ctx,
+      PPF_SYMBOL_DEGREE,
+      degree_x,
+      origin_y
+  );
+
+  const int c_x =
+      degree_x
+      + SMALL_GLYPH_WIDTH
+      + DEGREE_C_SPACING;
+
+  draw_small_symbol(
+      ctx,
+      PPF_SYMBOL_C,
+      c_x,
+      origin_y
+  );
+
+  return c_x + SMALL_GLYPH_WIDTH;
+}
+
+
+static int celsius_advance_width(void) {
+  return (
+      SMALL_GLYPH_WIDTH * 2
+      - DEGREE_CELL_OVERLAP
+      + DEGREE_C_SPACING
+  );
+}
+
+
 static int temperature_digit_count(
     int absolute_temperature
 ) {
@@ -402,8 +530,7 @@ static void draw_unavailable_temperature(
       MINUS_WIDTH
       + SMALL_DIGIT_SPACING
       + MINUS_WIDTH
-      + SYMBOL_SPACING
-      + LETTER_C_WIDTH;
+      + celsius_advance_width();
 
   int x =
       TEMPERATURE_RIGHT_X - width;
@@ -424,11 +551,9 @@ static void draw_unavailable_temperature(
       INFO_Y
   );
 
-  x +=
-      MINUS_WIDTH
-      + SYMBOL_SPACING;
+  x += MINUS_WIDTH;
 
-  draw_letter_c(
+  draw_celsius(
       ctx,
       x,
       INFO_Y
@@ -464,8 +589,7 @@ static void draw_temperature(
 
   int width =
       number_width(digit_count)
-      + SYMBOL_SPACING
-      + LETTER_C_WIDTH;
+      + celsius_advance_width();
 
   if (is_negative) {
     width +=
@@ -496,9 +620,7 @@ static void draw_temperature(
       INFO_Y
   );
 
-  x += SYMBOL_SPACING;
-
-  draw_letter_c(
+  draw_celsius(
       ctx,
       x,
       INFO_Y
@@ -552,9 +674,6 @@ static void maybe_request_weather(
     return;
   }
 
-  /*
-   * Höchstens eine Anfrage pro halber Stunde.
-   */
   const int32_t weather_slot =
       (
         current_time->tm_year * 366L

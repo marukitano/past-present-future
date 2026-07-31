@@ -1,0 +1,54 @@
+#include "symbol_font.h"
+
+const uint32_t PPF_SYMBOLS
+    [PPF_SYMBOL_COUNT]
+    [PPF_SYMBOL_HEIGHT] = {
+  // C
+  {
+    0xFFFFFFu,
+    0xFFFFFFu,
+    0xFFFFFFu,
+    0xFFFFFCu,
+    0xF00000u,
+    0xF00000u,
+    0xF00000u,
+    0xF00000u,
+    0xF00000u,
+    0xF00000u,
+    0xF00000u,
+    0xF00000u,
+    0xF00000u,
+    0xF00000u,
+    0xF00000u,
+    0xF00000u,
+    0xF00000u,
+    0xFFFFFCu,
+    0xFFFFFFu,
+    0xFFFFFFu,
+    0xFFFFFFu,
+  },
+  // DEGREE
+  {
+    0x00003Fu,
+    0x00003Fu,
+    0x000033u,
+    0x000033u,
+    0x00003Fu,
+    0x00003Fu,
+    0x000000u,
+    0x000000u,
+    0x000000u,
+    0x000000u,
+    0x000000u,
+    0x000000u,
+    0x000000u,
+    0x000000u,
+    0x000000u,
+    0x000000u,
+    0x000000u,
+    0x000000u,
+    0x000000u,
+    0x000000u,
+    0x000000u,
+  },
+};
