@@ -1,31 +1,24 @@
 #include <pebble.h>
 
-#include "../digit_font.h"
+#include "../render/time_row.h"
+#include "../settings/app_settings.h"
 #include "main_window.h"
 
 #if !defined(PBL_PLATFORM_EMERY)
 #error "Past Present Future supports only Pebble Time 2 / Emery."
 #endif
 
-#define DIGIT_SPACING 3
-#define GROUP_SPACING 12
-
-#define PAIR_WIDTH \
-  (PPF_DIGIT_WIDTH * 2 + DIGIT_SPACING)
-
-#define TIME_ROW_WIDTH \
-  (PAIR_WIDTH * 3 + GROUP_SPACING * 2)
-
-#define TIME_ROW_X \
-  ((PBL_DISPLAY_WIDTH - TIME_ROW_WIDTH) / 2)
+/*
+ * Für schnelles Testen auf 1 setzen:
+ * Die untere Zeile zeigt Sekunden und animiert jede Sekunde.
+ *
+ * Vor einem Commit wieder auf 0 setzen.
+ */
+#define PPF_EFFECT_DEMO_MODE 1
 
 #define HOUR_ROW_Y 18
 #define MINUTE_ROW_Y 45
 
-/*
- * Die ursprünglichen 144 × 168 Grafiken werden für das
- * 200 × 228 Display der Pebble Time 2 pixelgenau skaliert.
- */
 #define COLUMN_WIDTH 46
 #define COLUMN_HEIGHT PBL_DISPLAY_HEIGHT
 #define COLUMN_Y 0
@@ -37,117 +30,19 @@
 static Window *s_window;
 static Layer *s_time_layer;
 
+static TimeRow s_hour_row;
+static TimeRow s_minute_row;
+
+static const AppSettings *s_settings;
+
 static BitmapLayer *s_past_bitmap_layer;
 static BitmapLayer *s_present_bitmap_layer;
 static BitmapLayer *s_future_bitmap_layer;
-static BitmapLayer *s_mask_bitmap_layer;
 
 static GBitmap *s_past_gbitmap;
 static GBitmap *s_present_gbitmap;
 static GBitmap *s_future_gbitmap;
 static GBitmap *s_mask_gbitmap;
-
-static int s_hours;
-static int s_minutes;
-
-
-static void draw_digit(
-    GContext *ctx,
-    int digit,
-    int origin_x,
-    int origin_y
-) {
-  if (digit < 0 || digit >= PPF_DIGIT_COUNT) {
-    return;
-  }
-
-  for (int row = 0; row < PPF_DIGIT_HEIGHT; ++row) {
-    const uint32_t bits = PPF_DIGITS[digit][row];
-    int run_start = -1;
-
-    /*
-     * Statt jeden Pixel einzeln zu zeichnen, werden
-     * zusammenhängende schwarze Pixel als Rechteck gezeichnet.
-     */
-    for (int column = 0; column <= PPF_DIGIT_WIDTH; ++column) {
-      const bool pixel_is_set =
-          column < PPF_DIGIT_WIDTH
-          && (bits & (1u << (PPF_DIGIT_WIDTH - 1 - column)));
-
-      if (pixel_is_set && run_start < 0) {
-        run_start = column;
-      }
-
-      if (!pixel_is_set && run_start >= 0) {
-        graphics_fill_rect(
-            ctx,
-            GRect(
-                origin_x + run_start,
-                origin_y + row,
-                column - run_start,
-                1
-            ),
-            0,
-            GCornerNone
-        );
-
-        run_start = -1;
-      }
-    }
-  }
-}
-
-
-static void draw_two_digit_number(
-    GContext *ctx,
-    int value,
-    int origin_x,
-    int origin_y
-) {
-  const int tens = value / 10;
-  const int ones = value % 10;
-
-  draw_digit(
-      ctx,
-      tens,
-      origin_x,
-      origin_y
-  );
-
-  draw_digit(
-      ctx,
-      ones,
-      origin_x + PPF_DIGIT_WIDTH + DIGIT_SPACING,
-      origin_y
-  );
-}
-
-
-static void draw_past_present_future(
-    GContext *ctx,
-    int current_value,
-    int modulo,
-    int origin_y
-) {
-  const int values[3] = {
-      (current_value + modulo - 1) % modulo,
-      current_value,
-      (current_value + 1) % modulo
-  };
-
-  for (int group = 0; group < 3; ++group) {
-    const int origin_x =
-        TIME_ROW_X
-        + group * (PAIR_WIDTH + GROUP_SPACING);
-
-    draw_two_digit_number(
-        ctx,
-        values[group],
-        origin_x,
-        origin_y
-    );
-  }
-}
 
 
 static void time_layer_update_proc(
@@ -156,19 +51,63 @@ static void time_layer_update_proc(
 ) {
   (void)layer;
 
-  graphics_context_set_fill_color(ctx, GColorBlack);
-
-  draw_past_present_future(
+  graphics_context_set_fill_color(
       ctx,
-      s_hours,
-      24,
+      GColorBlack
+  );
+
+  time_row_draw(
+      &s_hour_row,
+      ctx,
       HOUR_ROW_Y
   );
 
-  draw_past_present_future(
+  time_row_draw(
+      &s_minute_row,
       ctx,
-      s_minutes,
-      60,
+      MINUTE_ROW_Y
+  );
+
+  /*
+   * Die Maske wird bei jedem Animationsframe erneut über
+   * Zahlen und Hintergrundgrafiken gezeichnet.
+   */
+  if (s_mask_gbitmap) {
+    graphics_context_set_compositing_mode(
+        ctx,
+        GCompOpSet
+    );
+
+    graphics_draw_bitmap_in_rect(
+        ctx,
+        s_mask_gbitmap,
+        GRect(
+            0,
+            0,
+            PBL_DISPLAY_WIDTH,
+            PBL_DISPLAY_HEIGHT
+        )
+    );
+  }
+
+  /*
+   * PRESENT wird im dynamischen Bounce-Korridor
+   * nochmals unmaskiert über die Maske gezeichnet.
+   */
+  graphics_context_set_fill_color(
+      ctx,
+      GColorBlack
+  );
+
+  time_row_draw_present_overlay(
+      &s_hour_row,
+      ctx,
+      HOUR_ROW_Y
+  );
+
+  time_row_draw_present_overlay(
+      &s_minute_row,
+      ctx,
       MINUTE_ROW_Y
   );
 }
@@ -180,26 +119,77 @@ static void tick_handler(
 ) {
   (void)units_changed;
 
-  s_hours = tick_time->tm_hour;
-  s_minutes = tick_time->tm_min;
+#if PPF_EFFECT_DEMO_MODE
+  time_row_set_value(
+      &s_hour_row,
+      tick_time->tm_hour,
+      false
+  );
 
-  if (s_time_layer) {
-    layer_mark_dirty(s_time_layer);
-  }
+  time_row_set_value(
+      &s_minute_row,
+      tick_time->tm_sec,
+      true
+  );
+#else
+  time_row_set_value(
+      &s_hour_row,
+      tick_time->tm_hour,
+      s_settings->animate_hours
+  );
+
+  time_row_set_value(
+      &s_minute_row,
+      tick_time->tm_min,
+      s_settings->animate_minutes
+  );
+#endif
 }
 
 
-static void create_column_layers(Layer *root_layer) {
+static BitmapLayer *create_bitmap_layer(
+    Layer *root_layer,
+    GBitmap *bitmap,
+    GRect frame
+) {
+  BitmapLayer *bitmap_layer =
+      bitmap_layer_create(frame);
+
+  bitmap_layer_set_bitmap(
+      bitmap_layer,
+      bitmap
+  );
+
+  layer_add_child(
+      root_layer,
+      bitmap_layer_get_layer(bitmap_layer)
+  );
+
+  return bitmap_layer;
+}
+
+
+static void create_column_layers(
+    Layer *root_layer
+) {
   s_past_gbitmap =
-      gbitmap_create_with_resource(RESOURCE_ID_PAST);
+      gbitmap_create_with_resource(
+          RESOURCE_ID_PAST
+      );
 
   s_present_gbitmap =
-      gbitmap_create_with_resource(RESOURCE_ID_PRESENT);
+      gbitmap_create_with_resource(
+          RESOURCE_ID_PRESENT
+      );
 
   s_future_gbitmap =
-      gbitmap_create_with_resource(RESOURCE_ID_FUTURE);
+      gbitmap_create_with_resource(
+          RESOURCE_ID_FUTURE
+      );
 
-  s_past_bitmap_layer = bitmap_layer_create(
+  s_past_bitmap_layer = create_bitmap_layer(
+      root_layer,
+      s_past_gbitmap,
       GRect(
           PAST_COLUMN_X,
           COLUMN_Y,
@@ -208,7 +198,9 @@ static void create_column_layers(Layer *root_layer) {
       )
   );
 
-  s_present_bitmap_layer = bitmap_layer_create(
+  s_present_bitmap_layer = create_bitmap_layer(
+      root_layer,
+      s_present_gbitmap,
       GRect(
           PRESENT_COLUMN_X,
           COLUMN_Y,
@@ -217,7 +209,9 @@ static void create_column_layers(Layer *root_layer) {
       )
   );
 
-  s_future_bitmap_layer = bitmap_layer_create(
+  s_future_bitmap_layer = create_bitmap_layer(
+      root_layer,
+      s_future_gbitmap,
       GRect(
           FUTURE_COLUMN_X,
           COLUMN_Y,
@@ -225,41 +219,14 @@ static void create_column_layers(Layer *root_layer) {
           COLUMN_HEIGHT
       )
   );
-
-  bitmap_layer_set_bitmap(
-      s_past_bitmap_layer,
-      s_past_gbitmap
-  );
-
-  bitmap_layer_set_bitmap(
-      s_present_bitmap_layer,
-      s_present_gbitmap
-  );
-
-  bitmap_layer_set_bitmap(
-      s_future_bitmap_layer,
-      s_future_gbitmap
-  );
-
-  layer_add_child(
-      root_layer,
-      bitmap_layer_get_layer(s_past_bitmap_layer)
-  );
-
-  layer_add_child(
-      root_layer,
-      bitmap_layer_get_layer(s_present_bitmap_layer)
-  );
-
-  layer_add_child(
-      root_layer,
-      bitmap_layer_get_layer(s_future_bitmap_layer)
-  );
 }
 
 
 static void window_load(Window *window) {
-  Layer *root_layer = window_get_root_layer(window);
+  Layer *root_layer =
+      window_get_root_layer(window);
+
+  s_settings = app_settings_get();
 
   create_column_layers(root_layer);
 
@@ -282,42 +249,36 @@ static void window_load(Window *window) {
       s_time_layer
   );
 
-  /*
-   * Die Maske liegt über den Zahlen. Dadurch ist PRESENT
-   * vollständig sichtbar, während PAST und FUTURE durch
-   * das charakteristische Punktraster erscheinen.
-   */
+  time_row_init(
+      &s_hour_row,
+      s_time_layer,
+      24,
+      s_settings
+  );
+
+  time_row_init(
+      &s_minute_row,
+      s_time_layer,
+      60,
+      s_settings
+  );
+
   s_mask_gbitmap =
-      gbitmap_create_with_resource(RESOURCE_ID_MASK);
+      gbitmap_create_with_resource(
+          RESOURCE_ID_MASK
+      );
 
-  s_mask_bitmap_layer = bitmap_layer_create(
-      GRect(
-          0,
-          0,
-          PBL_DISPLAY_WIDTH,
-          PBL_DISPLAY_HEIGHT
-      )
+#if PPF_EFFECT_DEMO_MODE
+  tick_timer_service_subscribe(
+      SECOND_UNIT,
+      tick_handler
   );
-
-  bitmap_layer_set_bitmap(
-      s_mask_bitmap_layer,
-      s_mask_gbitmap
-  );
-
-  bitmap_layer_set_compositing_mode(
-      s_mask_bitmap_layer,
-      GCompOpSet
-  );
-
-  layer_add_child(
-      root_layer,
-      bitmap_layer_get_layer(s_mask_bitmap_layer)
-  );
-
+#else
   tick_timer_service_subscribe(
       MINUTE_UNIT,
       tick_handler
   );
+#endif
 
   time_t now = time(NULL);
   struct tm *current_time = localtime(&now);
@@ -334,11 +295,11 @@ static void window_unload(Window *window) {
 
   tick_timer_service_unsubscribe();
 
+  time_row_deinit(&s_hour_row);
+  time_row_deinit(&s_minute_row);
+
   layer_destroy(s_time_layer);
   s_time_layer = NULL;
-
-  bitmap_layer_destroy(s_mask_bitmap_layer);
-  s_mask_bitmap_layer = NULL;
 
   bitmap_layer_destroy(s_past_bitmap_layer);
   bitmap_layer_destroy(s_present_bitmap_layer);
@@ -350,6 +311,10 @@ static void window_unload(Window *window) {
   gbitmap_destroy(s_past_gbitmap);
   gbitmap_destroy(s_present_gbitmap);
   gbitmap_destroy(s_future_gbitmap);
+
+  s_past_gbitmap = NULL;
+  s_present_gbitmap = NULL;
+  s_future_gbitmap = NULL;
 }
 
 
@@ -365,8 +330,8 @@ void main_window_push(void) {
     window_set_window_handlers(
         s_window,
         (WindowHandlers) {
-            .load = window_load,
-            .unload = window_unload
+          .load = window_load,
+          .unload = window_unload
         }
     );
   }
