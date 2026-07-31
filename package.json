@@ -1,6 +1,6 @@
 {
-  "version": "1.1.0",
-  "author": "Chris Lewis",
+  "version": "1.0.0",
+  "author": "marukitano",
   "private": true,
   "dependencies": {
     "@rebble/clay": "^1.0.10"
@@ -47,7 +47,7 @@
       ]
     },
     "projectType": "native",
-    "uuid": "79a5fca6-e512-4db9-81f7-b87bbcf8da16",
+    "uuid": "ae091586-ebe6-4391-954b-359108d76ef0",
     "messageKeys": {
       "AnimationEffect": 0,
       "AnimationSpeed": 1,
