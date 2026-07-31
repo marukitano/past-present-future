@@ -11,30 +11,24 @@
     "resources": {
       "media": [
         {
-          "characterRegex": "[0-9 ]",
-          "type": "font",
-          "name": "FONT_ORBITRON_MEDIUM_22",
-          "file": "fonts/Orbitron-Medium.ttf"
-        },
-        {
           "type": "bitmap",
           "name": "PAST",
-          "file": "images/past.png"
+          "file": "images/emery/past.png"
         },
         {
           "type": "bitmap",
           "name": "PRESENT",
-          "file": "images/present.png"
+          "file": "images/emery/present.png"
         },
         {
           "type": "bitmap",
           "name": "FUTURE",
-          "file": "images/future.png"
+          "file": "images/emery/future.png"
         },
         {
           "type": "bitmap",
           "name": "MASK",
-          "file": "images/mask.png"
+          "file": "images/emery/mask.png"
         }
       ]
     },
@@ -51,9 +45,7 @@
       "watchface": true
     },
     "targetPlatforms": [
-      "aplite",
-      "basalt",
-      "diorite"
+      "emery"
     ],
     "capabilities": []
   },

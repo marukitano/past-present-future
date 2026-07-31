@@ -1,5 +1,4 @@
 #pragma once
 
-#include <pebble.h>
-
-void main_window_push();
+void main_window_push(void);
+void main_window_destroy(void);
