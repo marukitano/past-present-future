@@ -119,10 +119,10 @@ static void window_load(Window *window) {
   bitmap_layer_set_bitmap(s_future_bitmap_layer, s_future_gbitmap);
   layer_add_child(window_get_root_layer(window), bitmap_layer_get_layer(s_future_bitmap_layer));
 
-  s_hour_layer = create_text_layer(GRect(0, 5, 144, 60), GColorBlack, GColorClear, RESOURCE_ID_FONT_MEGAFONT_22, GTextAlignmentCenter);
+  s_hour_layer = create_text_layer(GRect(0, 5, 144, 60), GColorBlack, GColorClear, RESOURCE_ID_FONT_ORBITRON_MEDIUM_22, GTextAlignmentCenter);
   layer_add_child(window_get_root_layer(window), text_layer_get_layer(s_hour_layer));
 
-  s_minute_layer = create_text_layer(GRect(0, 25, 144, 60), GColorBlack, GColorClear, RESOURCE_ID_FONT_MEGAFONT_22, GTextAlignmentCenter);
+  s_minute_layer = create_text_layer(GRect(0, 25, 144, 60), GColorBlack, GColorClear, RESOURCE_ID_FONT_ORBITRON_MEDIUM_22, GTextAlignmentCenter);
   layer_add_child(window_get_root_layer(window), text_layer_get_layer(s_minute_layer));
 
   s_mask_layer = bitmap_layer_create(GRect(0, 0, 144, 168));

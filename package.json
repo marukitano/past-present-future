@@ -11,10 +11,10 @@
     "resources": {
       "media": [
         {
-          "characterRegex": "[0-9 A-Z]",
+          "characterRegex": "[0-9 ]",
           "type": "font",
-          "name": "FONT_MEGAFONT_22",
-          "file": "fonts/megafont.ttf"
+          "name": "FONT_ORBITRON_MEDIUM_22",
+          "file": "fonts/Orbitron-Medium.ttf"
         },
         {
           "type": "bitmap",
