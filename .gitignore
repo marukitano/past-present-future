@@ -1,9 +1,6 @@
-
 build/
-.lock-waf*
 node_modules/
+.lock-waf*
 *.pbw
-# Pebble build output
 *.pyc
 __pycache__/
-# Python

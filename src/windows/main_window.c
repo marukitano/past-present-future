@@ -10,14 +10,6 @@
 #error "Past Present Future supports only Pebble Time 2 / Emery."
 #endif
 
-/*
- * Für schnelles Testen auf 1 setzen:
- * Die untere Zeile zeigt Sekunden und animiert jede Sekunde.
- *
- * Vor einem Commit wieder auf 0 setzen.
- */
-#define PPF_EFFECT_DEMO_MODE 1
-
 #define HOUR_ROW_Y 18
 #define MINUTE_ROW_Y 45
 
@@ -34,8 +26,6 @@ static Layer *s_time_layer;
 
 static TimeRow s_hour_row;
 static TimeRow s_minute_row;
-
-static const AppSettings *s_settings;
 
 static BitmapLayer *s_past_bitmap_layer;
 static BitmapLayer *s_present_bitmap_layer;
@@ -368,19 +358,6 @@ static void tick_handler(
 
   info_display_update(tick_time);
 
-#if PPF_EFFECT_DEMO_MODE
-  time_row_set_value(
-      &s_hour_row,
-      tick_time->tm_hour,
-      false
-  );
-
-  time_row_set_value(
-      &s_minute_row,
-      tick_time->tm_sec,
-      true
-  );
-#else
   time_row_set_value(
       &s_hour_row,
       tick_time->tm_hour,
@@ -392,7 +369,6 @@ static void tick_handler(
       tick_time->tm_min,
       true
   );
-#endif
 }
 
 
@@ -485,7 +461,8 @@ static void window_load(Window *window) {
   Layer *root_layer =
       window_get_root_layer(window);
 
-  s_settings = app_settings_get();
+  const AppSettings *settings =
+      app_settings_get();
 
   create_column_layers(root_layer);
 
@@ -512,14 +489,14 @@ static void window_load(Window *window) {
       &s_hour_row,
       s_time_layer,
       24,
-      s_settings
+      settings
   );
 
   time_row_init(
       &s_minute_row,
       s_time_layer,
       60,
-      s_settings
+      settings
   );
 
   s_mask_gbitmap =
@@ -566,11 +543,8 @@ static void window_load(Window *window) {
   }
 
   /*
-   * PRESENT_SWISS_PROTECTED_OVERLAY
-   *
-   * Diese Ebene liegt oberhalb des Inverters.
-   * Dadurch bleiben das rote Feld und das weisse
-   * Kreuz unverändert.
+   * Keeps the red emblem and white cross unchanged
+   * above the black/white inverter.
    */
   s_swiss_protected_bitmap_layer =
       create_bitmap_layer(
@@ -599,17 +573,10 @@ static void window_load(Window *window) {
 
   settings_changed_handler();
 
-#if PPF_EFFECT_DEMO_MODE
-  tick_timer_service_subscribe(
-      SECOND_UNIT,
-      tick_handler
-  );
-#else
   tick_timer_service_subscribe(
       MINUTE_UNIT,
       tick_handler
   );
-#endif
 
   time_t now = time(NULL);
   struct tm *current_time = localtime(&now);
@@ -627,7 +594,6 @@ static void window_unload(Window *window) {
   tick_timer_service_unsubscribe();
 
   set_shake_subscription(false);
-  cancel_wrist_shake_timer();
 
   if (s_inverter_layer) {
     inverter_layer_compat_destroy(
@@ -638,7 +604,6 @@ static void window_unload(Window *window) {
   }
 
   s_dark_mode = false;
-  s_wrist_shake_locked = false;
 
   app_settings_set_changed_handler(NULL);
 

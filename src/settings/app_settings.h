@@ -41,10 +41,6 @@ void app_settings_deinit(void);
 
 const AppSettings *app_settings_get(void);
 
-void app_settings_save(
-    const AppSettings *settings
-);
-
 void app_settings_set_changed_handler(
     AppSettingsChangedHandler handler
 );

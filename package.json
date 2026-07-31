@@ -6,7 +6,9 @@
     "@rebble/clay": "^1.0.10"
   },
   "keywords": [
-    "pebble-app"
+    "pebble-app",
+    "pebble-time-2",
+    "watchface"
   ],
   "pebble": {
     "sdkVersion": "3",
@@ -57,7 +59,7 @@
       "ThemeMode": 7
     },
     "enableMultiJS": true,
-    "displayName": "past-present-future",
+    "displayName": "Past Present Future",
     "watchapp": {
       "onlyShownOnCommunication": false,
       "hiddenApp": false,
@@ -71,5 +73,13 @@
       "location"
     ]
   },
-  "name": "past-present-future"
+  "name": "past-present-future",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/marukitano/past-present-future.git"
+  },
+  "contributors": [
+    "marukitano"
+  ]
 }

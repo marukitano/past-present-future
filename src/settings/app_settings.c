@@ -13,8 +13,7 @@ static AppSettings s_settings;
 static int16_t s_temperature_c;
 static bool s_temperature_available;
 
-static AppSettingsChangedHandler
-    s_changed_handler;
+static AppSettingsChangedHandler s_changed_handler;
 
 
 static AppSettings default_settings(void) {
@@ -128,7 +127,7 @@ static void load_settings(void) {
 }
 
 
-void app_settings_save(
+static void save_settings(
     const AppSettings *settings
 ) {
   if (!settings) {
@@ -239,7 +238,7 @@ static void inbox_received_handler(
   }
 
   if (received_settings) {
-    app_settings_save(&updated);
+    save_settings(&updated);
 
     APP_LOG(
         APP_LOG_LEVEL_INFO,
