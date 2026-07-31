@@ -386,7 +386,9 @@ void time_row_set_value(
   if (
       !animation_controller_start(
           &row->animation,
-          row->settings->animation_duration_ms
+          app_settings_animation_duration(
+              row->settings
+          )
       )
   ) {
     row->displayed_value = value;
@@ -448,9 +450,7 @@ void time_row_draw_present_overlay(
    * Einstellungen gewählte Bounce-Stärke angepasst.
    */
   const int16_t bounce_distance =
-      row->settings
-          ? row->settings->bounce_distance_px
-          : 0;
+      app_settings_bounce_distance_px();
 
   /*
    * Die Zahl soll gepunktet aus dem FUTURE-Bereich

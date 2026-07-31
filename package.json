@@ -2,7 +2,9 @@
   "version": "1.1.0",
   "author": "Chris Lewis",
   "private": true,
-  "dependencies": {},
+  "dependencies": {
+    "@rebble/clay": "^1.0.10"
+  },
   "keywords": [
     "pebble-app"
   ],
@@ -35,9 +37,14 @@
     "projectType": "native",
     "uuid": "79a5fca6-e512-4db9-81f7-b87bbcf8da16",
     "messageKeys": {
-      "dummy": 0
+      "AnimationEffect": 0,
+      "AnimationSpeed": 1,
+      "ShowDate": 2,
+      "ShowTemperature": 3,
+      "Temperature": 4,
+      "WeatherRequest": 5
     },
-    "enableMultiJS": false,
+    "enableMultiJS": true,
     "displayName": "past-present-future",
     "watchapp": {
       "onlyShownOnCommunication": false,
@@ -47,7 +54,10 @@
     "targetPlatforms": [
       "emery"
     ],
-    "capabilities": []
+    "capabilities": [
+      "configurable",
+      "location"
+    ]
   },
   "name": "past-present-future"
 }

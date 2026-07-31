@@ -1,5 +1,6 @@
 #include <pebble.h>
 
+#include "../info/info_display.h"
 #include "../render/time_row.h"
 #include "../settings/app_settings.h"
 #include "main_window.h"
@@ -119,6 +120,8 @@ static void tick_handler(
 ) {
   (void)units_changed;
 
+  info_display_update(tick_time);
+
 #if PPF_EFFECT_DEMO_MODE
   time_row_set_value(
       &s_hour_row,
@@ -135,13 +138,13 @@ static void tick_handler(
   time_row_set_value(
       &s_hour_row,
       tick_time->tm_hour,
-      s_settings->animate_hours
+      true
   );
 
   time_row_set_value(
       &s_minute_row,
       tick_time->tm_min,
-      s_settings->animate_minutes
+      true
   );
 #endif
 }
@@ -268,6 +271,12 @@ static void window_load(Window *window) {
           RESOURCE_ID_MASK
       );
 
+  /*
+   * Als letztes erzeugt, damit Datum und Temperatur
+   * oberhalb der Zeitmaske liegen.
+   */
+  info_display_init(root_layer);
+
 #if PPF_EFFECT_DEMO_MODE
   tick_timer_service_subscribe(
       SECOND_UNIT,
@@ -294,6 +303,8 @@ static void window_unload(Window *window) {
   (void)window;
 
   tick_timer_service_unsubscribe();
+
+  info_display_deinit();
 
   time_row_deinit(&s_hour_row);
   time_row_deinit(&s_minute_row);
