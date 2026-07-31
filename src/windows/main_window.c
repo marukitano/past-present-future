@@ -7,7 +7,7 @@
 #error "Past Present Future supports only Pebble Time 2 / Emery."
 #endif
 
-#define DIGIT_SPACING 1
+#define DIGIT_SPACING 3
 #define GROUP_SPACING 12
 
 #define PAIR_WIDTH \
