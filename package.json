@@ -53,7 +53,8 @@
       "ShowTemperature": 3,
       "Temperature": 4,
       "WeatherRequest": 5,
-      "ShowSwissEmblem": 6
+      "ShowSwissEmblem": 6,
+      "ThemeMode": 7
     },
     "enableMultiJS": true,
     "displayName": "past-present-future",

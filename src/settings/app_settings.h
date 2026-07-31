@@ -14,6 +14,12 @@ typedef enum {
   PPF_SPEED_FAST = 2
 } PpfAnimationSpeed;
 
+typedef enum {
+  PPF_THEME_LIGHT = 0,
+  PPF_THEME_DARK = 1,
+  PPF_THEME_SHAKE = 2
+} PpfThemeMode;
+
 typedef struct {
   uint8_t version;
 
@@ -23,6 +29,8 @@ typedef struct {
   uint8_t show_date;
   uint8_t show_temperature;
   uint8_t show_swiss_emblem;
+
+  uint8_t theme_mode;
 } AppSettings;
 
 typedef void (*AppSettingsChangedHandler)(void);

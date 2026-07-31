@@ -60,6 +60,26 @@ module.exports = [
         defaultValue: "Display"
       },
       {
+        type: "select",
+        messageKey: "ThemeMode",
+        label: "Theme",
+        defaultValue: "2",
+        options: [
+          {
+            label: "Light",
+            value: "0"
+          },
+          {
+            label: "Dark",
+            value: "1"
+          },
+          {
+            label: "Shake",
+            value: "2"
+          }
+        ]
+      },
+      {
         type: "toggle",
         messageKey: "ShowDate",
         label: "Date",

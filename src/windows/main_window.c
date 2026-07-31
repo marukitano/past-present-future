@@ -53,8 +53,11 @@ static InverterLayerCompat *s_inverter_layer;
 
 static bool s_dark_mode;
 static bool s_wrist_shake_locked;
+static bool s_shake_service_subscribed;
 
 static AppTimer *s_wrist_shake_timer;
+
+static void apply_theme_mode(void);
 
 
 static void apply_present_variant(void) {
@@ -107,6 +110,7 @@ static void apply_present_variant(void) {
 
 static void settings_changed_handler(void) {
   apply_present_variant();
+  apply_theme_mode();
 
   time_t now = time(NULL);
 
@@ -180,7 +184,15 @@ static void wrist_shake_handler(
    * Ein kräftiges Schütteln kann mehrere Tap-Events
    * erzeugen. Deshalb kurze Sperre gegen Doppelschalten.
    */
-  if (s_wrist_shake_locked) {
+  const AppSettings *settings =
+      app_settings_get();
+
+  if (
+      !settings
+      || settings->theme_mode
+          != PPF_THEME_SHAKE
+      || s_wrist_shake_locked
+  ) {
     return;
   }
 
@@ -195,6 +207,86 @@ static void wrist_shake_handler(
           wrist_shake_unlock,
           NULL
       );
+}
+
+
+static void cancel_wrist_shake_timer(void) {
+  if (s_wrist_shake_timer) {
+    app_timer_cancel(
+        s_wrist_shake_timer
+    );
+
+    s_wrist_shake_timer = NULL;
+  }
+
+  s_wrist_shake_locked = false;
+}
+
+
+static void set_shake_subscription(
+    bool enabled
+) {
+  if (
+      enabled
+      && !s_shake_service_subscribed
+  ) {
+    accel_tap_service_subscribe(
+        wrist_shake_handler
+    );
+
+    s_shake_service_subscribed = true;
+  } else if (
+      !enabled
+      && s_shake_service_subscribed
+  ) {
+    accel_tap_service_unsubscribe();
+    s_shake_service_subscribed = false;
+  }
+
+  if (!enabled) {
+    cancel_wrist_shake_timer();
+  }
+}
+
+
+static void apply_theme_mode(void) {
+  const AppSettings *settings =
+      app_settings_get();
+
+  if (
+      !settings
+      || !s_inverter_layer
+  ) {
+    return;
+  }
+
+  const PpfThemeMode theme_mode =
+      (PpfThemeMode)settings->theme_mode;
+
+  set_shake_subscription(
+      theme_mode == PPF_THEME_SHAKE
+  );
+
+  switch (theme_mode) {
+    case PPF_THEME_LIGHT:
+      s_dark_mode = false;
+      break;
+
+    case PPF_THEME_DARK:
+      s_dark_mode = true;
+      break;
+
+    case PPF_THEME_SHAKE:
+    default:
+      /*
+       * Beim Start ist der Shake-Modus hell.
+       * Danach bleibt der durch Schütteln gewählte
+       * Zustand erhalten.
+       */
+      break;
+  }
+
+  apply_dark_mode();
 }
 
 
@@ -441,12 +533,6 @@ static void window_load(Window *window) {
    */
   info_display_init(root_layer);
 
-  app_settings_set_changed_handler(
-      settings_changed_handler
-  );
-
-  settings_changed_handler();
-
   inverter_layer_compat_set_colors(
       GColorBlack,
       GColorWhite
@@ -503,14 +589,15 @@ static void window_load(Window *window) {
       GCompOpSet
   );
 
-  apply_present_variant();
-
   s_dark_mode = false;
   s_wrist_shake_locked = false;
+  s_shake_service_subscribed = false;
 
-  accel_tap_service_subscribe(
-      wrist_shake_handler
+  app_settings_set_changed_handler(
+      settings_changed_handler
   );
+
+  settings_changed_handler();
 
 #if PPF_EFFECT_DEMO_MODE
   tick_timer_service_subscribe(
@@ -538,15 +625,9 @@ static void window_unload(Window *window) {
   (void)window;
 
   tick_timer_service_unsubscribe();
-  accel_tap_service_unsubscribe();
 
-  if (s_wrist_shake_timer) {
-    app_timer_cancel(
-        s_wrist_shake_timer
-    );
-
-    s_wrist_shake_timer = NULL;
-  }
+  set_shake_subscription(false);
+  cancel_wrist_shake_timer();
 
   if (s_inverter_layer) {
     inverter_layer_compat_destroy(
