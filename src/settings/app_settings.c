@@ -3,7 +3,7 @@
 #define SETTINGS_PERSIST_KEY 100
 #define TEMPERATURE_PERSIST_KEY 101
 
-#define SETTINGS_VERSION 4
+#define SETTINGS_VERSION 5
 
 #define DEFAULT_BOUNCE_DISTANCE_PX 6
 #define DEFAULT_WAVE_DELAY_PERCENT 26
@@ -28,7 +28,8 @@ static AppSettings default_settings(void) {
         PPF_SPEED_NORMAL,
 
     .show_date = 1,
-    .show_temperature = 1
+    .show_temperature = 1,
+    .show_swiss_emblem = 1
   };
 }
 
@@ -73,6 +74,9 @@ static void validate_settings(
 
   settings->show_temperature =
       settings->show_temperature ? 1 : 0;
+
+  settings->show_swiss_emblem =
+      settings->show_swiss_emblem ? 1 : 0;
 }
 
 
@@ -197,16 +201,32 @@ static void inbox_received_handler(
     received_settings = true;
   }
 
+  Tuple *swiss_emblem_tuple =
+      dict_find(
+          iterator,
+          MESSAGE_KEY_ShowSwissEmblem
+      );
+
+  if (swiss_emblem_tuple) {
+    updated.show_swiss_emblem =
+        swiss_emblem_tuple->value->int32
+        ? 1
+        : 0;
+
+    received_settings = true;
+  }
+
   if (received_settings) {
     app_settings_save(&updated);
 
     APP_LOG(
         APP_LOG_LEVEL_INFO,
-        "Settings: effect=%u speed=%u date=%u temp=%u",
+        "Settings: effect=%u speed=%u date=%u temp=%u swiss=%u",
         (unsigned int)s_settings.animation_effect,
         (unsigned int)s_settings.animation_speed,
         (unsigned int)s_settings.show_date,
-        (unsigned int)s_settings.show_temperature
+        (unsigned int)s_settings.show_temperature,
+        (unsigned int)s_settings.show_swiss_emblem
     );
   }
 

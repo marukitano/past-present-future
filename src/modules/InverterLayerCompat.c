@@ -1,65 +1,172 @@
-#ifdef PBL_PLATFORM_BASALT
 #include "InverterLayerCompat.h"
 
-static GColor s_fg_color, s_bg_color;
+static GColor s_foreground_color;
+static GColor s_background_color;
 
-static GColor get_pixel(uint8_t *fb_data, GSize fb_size, GPoint pixel) {
-  if(pixel.x >= 0 && pixel.x < 144 && pixel.y >= 0 && pixel.y < 168) {
-    return (GColor) { .argb = fb_data[(pixel.y * fb_size.w) + pixel.x] };
-  } else {
-    return GColorRed;
+
+static void inverter_update_proc(
+    Layer *layer,
+    GContext *ctx
+) {
+  GBitmap *framebuffer =
+      graphics_capture_frame_buffer(ctx);
+
+  if (!framebuffer) {
+    return;
   }
-}
 
-static void set_pixel(uint8_t *fb_data, GSize fb_size, GPoint pixel, GColor color) {
-  if(pixel.x >= 0 && pixel.x < 144 && pixel.y >= 0 && pixel.y < 168) {
-    memset(&fb_data[(pixel.y * fb_size.w) + pixel.x], (uint8_t)color.argb, 1);
+  uint8_t *data =
+      gbitmap_get_data(framebuffer);
+
+  if (!data) {
+    graphics_release_frame_buffer(
+        ctx,
+        framebuffer
+    );
+
+    return;
   }
-}
 
-static void layer_update_proc(Layer *layer, GContext *ctx) {
-  // Use framebuffer to emulate inverstion
-  GBitmap *fb = graphics_capture_frame_buffer(ctx);
-  GSize size = gbitmap_get_bounds(fb).size;
-  GRect frame = layer_get_frame(layer);
-  uint8_t *fb_data = gbitmap_get_data(fb);
+  const GRect framebuffer_bounds =
+      gbitmap_get_bounds(framebuffer);
 
-  for(int y = frame.origin.y; y < frame.origin.y + frame.size.h; y++) {
-    for(int x = frame.origin.x; x < frame.origin.x + frame.size.w; x++) {
-      if(gcolor_equal(get_pixel(fb_data, size, GPoint(x, y)), s_fg_color)) {
-        // Invert foreground to background
-        set_pixel(fb_data, size, GPoint(x, y), s_bg_color);
-      } else if(gcolor_equal(get_pixel(fb_data, size, GPoint(x, y)), s_bg_color)) {
-        // Invert background to foreground
-        set_pixel(fb_data, size, GPoint(x, y), s_fg_color);
+  const GRect layer_frame =
+      layer_get_frame(layer);
+
+  const uint16_t bytes_per_row =
+      gbitmap_get_bytes_per_row(framebuffer);
+
+  int16_t left = layer_frame.origin.x;
+  int16_t top = layer_frame.origin.y;
+
+  int16_t right =
+      layer_frame.origin.x
+      + layer_frame.size.w;
+
+  int16_t bottom =
+      layer_frame.origin.y
+      + layer_frame.size.h;
+
+  if (left < 0) {
+    left = 0;
+  }
+
+  if (top < 0) {
+    top = 0;
+  }
+
+  if (right > framebuffer_bounds.size.w) {
+    right = framebuffer_bounds.size.w;
+  }
+
+  if (bottom > framebuffer_bounds.size.h) {
+    bottom = framebuffer_bounds.size.h;
+  }
+
+  for (
+      int16_t y = top;
+      y < bottom;
+      ++y
+  ) {
+    for (
+        int16_t x = left;
+        x < right;
+        ++x
+    ) {
+      const uint32_t offset =
+          y * bytes_per_row + x;
+
+      const GColor pixel = {
+        .argb = data[offset]
+      };
+
+      if (
+          gcolor_equal(
+              pixel,
+              s_foreground_color
+          )
+      ) {
+        data[offset] =
+            s_background_color.argb;
+      } else if (
+          gcolor_equal(
+              pixel,
+              s_background_color
+          )
+      ) {
+        data[offset] =
+            s_foreground_color.argb;
       }
     }
   }
 
-  // Finally
-  graphics_release_frame_buffer(ctx, fb);
+  graphics_release_frame_buffer(
+      ctx,
+      framebuffer
+  );
 }
 
-InverterLayerCompat *inverter_layer_compat_create(GRect bounds) {
-  InverterLayerCompat *this = (InverterLayerCompat*)malloc(sizeof(InverterLayerCompat));
-  this->layer = layer_create(bounds);
-  layer_set_update_proc(this->layer, layer_update_proc);
 
-  return this;
+InverterLayerCompat *
+inverter_layer_compat_create(
+    GRect bounds
+) {
+  InverterLayerCompat *inverter_layer =
+      malloc(sizeof(InverterLayerCompat));
+
+  if (!inverter_layer) {
+    return NULL;
+  }
+
+  inverter_layer->layer =
+      layer_create(bounds);
+
+  if (!inverter_layer->layer) {
+    free(inverter_layer);
+    return NULL;
+  }
+
+  layer_set_update_proc(
+      inverter_layer->layer,
+      inverter_update_proc
+  );
+
+  return inverter_layer;
 }
 
-void inverter_layer_compat_set_colors(GColor fg, GColor bg) {
-  s_fg_color = fg;
-  s_bg_color = bg;
+
+void inverter_layer_compat_set_colors(
+    GColor foreground,
+    GColor background
+) {
+  s_foreground_color = foreground;
+  s_background_color = background;
 }
 
-void inverter_layer_compat_destroy(InverterLayerCompat *this) {
-  layer_destroy(this->layer);
-  free(this);
+
+void inverter_layer_compat_destroy(
+    InverterLayerCompat *inverter_layer
+) {
+  if (!inverter_layer) {
+    return;
+  }
+
+  if (inverter_layer->layer) {
+    layer_destroy(
+        inverter_layer->layer
+    );
+  }
+
+  free(inverter_layer);
 }
 
-Layer* inverter_layer_compat_get_layer(InverterLayerCompat *this) {
-  return this->layer;
-}
 
-#endif
+Layer *inverter_layer_compat_get_layer(
+    InverterLayerCompat *inverter_layer
+) {
+  if (!inverter_layer) {
+    return NULL;
+  }
+
+  return inverter_layer->layer;
+}

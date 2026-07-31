@@ -70,6 +70,12 @@ module.exports = [
         messageKey: "ShowTemperature",
         label: "Temperature",
         defaultValue: true
+      },
+      {
+        type: "toggle",
+        messageKey: "ShowSwissEmblem",
+        label: "Swiss emblem",
+        defaultValue: true
       }
     ]
   },

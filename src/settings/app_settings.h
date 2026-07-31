@@ -22,6 +22,7 @@ typedef struct {
 
   uint8_t show_date;
   uint8_t show_temperature;
+  uint8_t show_swiss_emblem;
 } AppSettings;
 
 typedef void (*AppSettingsChangedHandler)(void);

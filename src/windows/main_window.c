@@ -1,6 +1,7 @@
 #include <pebble.h>
 
 #include "../info/info_display.h"
+#include "../modules/InverterLayerCompat.h"
 #include "../render/time_row.h"
 #include "../settings/app_settings.h"
 #include "main_window.h"
@@ -38,12 +39,163 @@ static const AppSettings *s_settings;
 
 static BitmapLayer *s_past_bitmap_layer;
 static BitmapLayer *s_present_bitmap_layer;
+static BitmapLayer *s_swiss_protected_bitmap_layer;
 static BitmapLayer *s_future_bitmap_layer;
 
 static GBitmap *s_past_gbitmap;
 static GBitmap *s_present_gbitmap;
+static GBitmap *s_present_swiss_gbitmap;
+static GBitmap *s_swiss_protected_gbitmap;
 static GBitmap *s_future_gbitmap;
 static GBitmap *s_mask_gbitmap;
+
+static InverterLayerCompat *s_inverter_layer;
+
+static bool s_dark_mode;
+static bool s_wrist_shake_locked;
+
+static AppTimer *s_wrist_shake_timer;
+
+
+static void apply_present_variant(void) {
+  if (!s_present_bitmap_layer) {
+    return;
+  }
+
+  const AppSettings *settings =
+      app_settings_get();
+
+  GBitmap *bitmap = s_present_gbitmap;
+
+  if (
+      settings
+      && settings->show_swiss_emblem
+      && s_present_swiss_gbitmap
+  ) {
+    bitmap = s_present_swiss_gbitmap;
+  }
+
+  bitmap_layer_set_bitmap(
+      s_present_bitmap_layer,
+      bitmap
+  );
+
+  layer_mark_dirty(
+      bitmap_layer_get_layer(
+          s_present_bitmap_layer
+      )
+  );
+
+  if (s_swiss_protected_bitmap_layer) {
+    Layer *protected_layer =
+        bitmap_layer_get_layer(
+            s_swiss_protected_bitmap_layer
+        );
+
+    layer_set_hidden(
+        protected_layer,
+        !(
+          settings
+          && settings->show_swiss_emblem
+        )
+    );
+
+    layer_mark_dirty(protected_layer);
+  }
+}
+
+
+static void settings_changed_handler(void) {
+  apply_present_variant();
+
+  time_t now = time(NULL);
+
+  struct tm *current_time =
+      localtime(&now);
+
+  info_display_update(current_time);
+}
+
+
+static void mark_inverter_dirty(void) {
+  if (
+      !s_dark_mode
+      || !s_inverter_layer
+  ) {
+    return;
+  }
+
+  Layer *layer =
+      inverter_layer_compat_get_layer(
+          s_inverter_layer
+      );
+
+  if (layer) {
+    layer_mark_dirty(layer);
+  }
+}
+
+
+static void apply_dark_mode(void) {
+  if (!s_inverter_layer) {
+    return;
+  }
+
+  Layer *layer =
+      inverter_layer_compat_get_layer(
+          s_inverter_layer
+      );
+
+  if (!layer) {
+    return;
+  }
+
+  layer_set_hidden(
+      layer,
+      !s_dark_mode
+  );
+
+  layer_mark_dirty(layer);
+}
+
+
+static void wrist_shake_unlock(
+    void *context
+) {
+  (void)context;
+
+  s_wrist_shake_timer = NULL;
+  s_wrist_shake_locked = false;
+}
+
+
+static void wrist_shake_handler(
+    AccelAxisType axis,
+    int32_t direction
+) {
+  (void)axis;
+  (void)direction;
+
+  /*
+   * Ein kräftiges Schütteln kann mehrere Tap-Events
+   * erzeugen. Deshalb kurze Sperre gegen Doppelschalten.
+   */
+  if (s_wrist_shake_locked) {
+    return;
+  }
+
+  s_wrist_shake_locked = true;
+  s_dark_mode = !s_dark_mode;
+
+  apply_dark_mode();
+
+  s_wrist_shake_timer =
+      app_timer_register(
+          700,
+          wrist_shake_unlock,
+          NULL
+      );
+}
 
 
 static void time_layer_update_proc(
@@ -111,6 +263,8 @@ static void time_layer_update_proc(
       ctx,
       MINUTE_ROW_Y
   );
+
+  mark_inverter_dirty();
 }
 
 
@@ -183,6 +337,16 @@ static void create_column_layers(
   s_present_gbitmap =
       gbitmap_create_with_resource(
           RESOURCE_ID_PRESENT
+      );
+
+  s_present_swiss_gbitmap =
+      gbitmap_create_with_resource(
+          RESOURCE_ID_PRESENT_SWISS
+      );
+
+  s_swiss_protected_gbitmap =
+      gbitmap_create_with_resource(
+          RESOURCE_ID_PRESENT_SWISS_PROTECTED
       );
 
   s_future_gbitmap =
@@ -277,6 +441,77 @@ static void window_load(Window *window) {
    */
   info_display_init(root_layer);
 
+  app_settings_set_changed_handler(
+      settings_changed_handler
+  );
+
+  settings_changed_handler();
+
+  inverter_layer_compat_set_colors(
+      GColorBlack,
+      GColorWhite
+  );
+
+  s_inverter_layer =
+      inverter_layer_compat_create(
+          GRect(
+              0,
+              0,
+              PBL_DISPLAY_WIDTH,
+              PBL_DISPLAY_HEIGHT
+          )
+      );
+
+  if (s_inverter_layer) {
+    Layer *inverter_layer =
+        inverter_layer_compat_get_layer(
+            s_inverter_layer
+        );
+
+    layer_add_child(
+        root_layer,
+        inverter_layer
+    );
+
+    layer_set_hidden(
+        inverter_layer,
+        true
+    );
+  }
+
+  /*
+   * PRESENT_SWISS_PROTECTED_OVERLAY
+   *
+   * Diese Ebene liegt oberhalb des Inverters.
+   * Dadurch bleiben das rote Feld und das weisse
+   * Kreuz unverändert.
+   */
+  s_swiss_protected_bitmap_layer =
+      create_bitmap_layer(
+          root_layer,
+          s_swiss_protected_gbitmap,
+          GRect(
+              PRESENT_COLUMN_X,
+              COLUMN_Y,
+              COLUMN_WIDTH,
+              COLUMN_HEIGHT
+          )
+      );
+
+  bitmap_layer_set_compositing_mode(
+      s_swiss_protected_bitmap_layer,
+      GCompOpSet
+  );
+
+  apply_present_variant();
+
+  s_dark_mode = false;
+  s_wrist_shake_locked = false;
+
+  accel_tap_service_subscribe(
+      wrist_shake_handler
+  );
+
 #if PPF_EFFECT_DEMO_MODE
   tick_timer_service_subscribe(
       SECOND_UNIT,
@@ -303,6 +538,28 @@ static void window_unload(Window *window) {
   (void)window;
 
   tick_timer_service_unsubscribe();
+  accel_tap_service_unsubscribe();
+
+  if (s_wrist_shake_timer) {
+    app_timer_cancel(
+        s_wrist_shake_timer
+    );
+
+    s_wrist_shake_timer = NULL;
+  }
+
+  if (s_inverter_layer) {
+    inverter_layer_compat_destroy(
+        s_inverter_layer
+    );
+
+    s_inverter_layer = NULL;
+  }
+
+  s_dark_mode = false;
+  s_wrist_shake_locked = false;
+
+  app_settings_set_changed_handler(NULL);
 
   info_display_deinit();
 
@@ -314,6 +571,9 @@ static void window_unload(Window *window) {
 
   bitmap_layer_destroy(s_past_bitmap_layer);
   bitmap_layer_destroy(s_present_bitmap_layer);
+  bitmap_layer_destroy(
+      s_swiss_protected_bitmap_layer
+  );
   bitmap_layer_destroy(s_future_bitmap_layer);
 
   gbitmap_destroy(s_mask_gbitmap);
@@ -321,10 +581,16 @@ static void window_unload(Window *window) {
 
   gbitmap_destroy(s_past_gbitmap);
   gbitmap_destroy(s_present_gbitmap);
+  gbitmap_destroy(s_present_swiss_gbitmap);
+  gbitmap_destroy(
+      s_swiss_protected_gbitmap
+  );
   gbitmap_destroy(s_future_gbitmap);
 
   s_past_gbitmap = NULL;
   s_present_gbitmap = NULL;
+  s_present_swiss_gbitmap = NULL;
+  s_swiss_protected_gbitmap = NULL;
   s_future_gbitmap = NULL;
 }
 

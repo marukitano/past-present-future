@@ -715,16 +715,6 @@ void info_display_update(
 }
 
 
-static void settings_changed_handler(void) {
-  time_t now = time(NULL);
-
-  struct tm *current_time =
-      localtime(&now);
-
-  info_display_update(current_time);
-}
-
-
 void info_display_init(
     Layer *root_layer
 ) {
@@ -751,17 +741,16 @@ void info_display_init(
       s_info_layer
   );
 
-  app_settings_set_changed_handler(
-      settings_changed_handler
-  );
+  time_t now = time(NULL);
 
-  settings_changed_handler();
+  struct tm *current_time =
+      localtime(&now);
+
+  info_display_update(current_time);
 }
 
 
 void info_display_deinit(void) {
-  app_settings_set_changed_handler(NULL);
-
   if (s_info_layer) {
     layer_destroy(s_info_layer);
     s_info_layer = NULL;

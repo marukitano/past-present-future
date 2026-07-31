@@ -14,6 +14,7 @@ var STORAGE_EFFECT = "ppf-animation-effect";
 var STORAGE_SPEED = "ppf-animation-speed";
 var STORAGE_SHOW_DATE = "ppf-show-date";
 var STORAGE_SHOW_TEMPERATURE = "ppf-show-temperature";
+var STORAGE_SHOW_SWISS_EMBLEM = "ppf-show-swiss-emblem";
 
 var STORAGE_TEMPERATURE = "ppf-temperature";
 var STORAGE_TEMPERATURE_TIME = "ppf-temperature-time";
@@ -256,6 +257,12 @@ Pebble.addEventListener("showConfiguration", function() {
         storedBoolean(
           STORAGE_SHOW_TEMPERATURE,
           true
+        ),
+
+    ShowSwissEmblem:
+        storedBoolean(
+          STORAGE_SHOW_SWISS_EMBLEM,
+          true
         )
   });
 
@@ -293,6 +300,11 @@ Pebble.addEventListener("webviewclosed", function(event) {
     true
   );
 
+  var showSwissEmblem = parseBoolean(
+    rawSettings.ShowSwissEmblem.value,
+    true
+  );
+
   if (isNaN(effect) || effect < 0 || effect > 2) {
     effect = 2;
   }
@@ -321,6 +333,11 @@ Pebble.addEventListener("webviewclosed", function(event) {
     String(showTemperature)
   );
 
+  localStorage.setItem(
+    STORAGE_SHOW_SWISS_EMBLEM,
+    String(showSwissEmblem)
+  );
+
   var message = {};
 
   message[messageKeys.AnimationEffect] = effect;
@@ -329,6 +346,9 @@ Pebble.addEventListener("webviewclosed", function(event) {
       showDate ? 1 : 0;
   message[messageKeys.ShowTemperature] =
       showTemperature ? 1 : 0;
+
+  message[messageKeys.ShowSwissEmblem] =
+      showSwissEmblem ? 1 : 0;
 
   Pebble.sendAppMessage(
     message,

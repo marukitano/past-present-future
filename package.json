@@ -24,6 +24,16 @@
         },
         {
           "type": "bitmap",
+          "name": "PRESENT_SWISS",
+          "file": "images/emery/present_swiss.png"
+        },
+        {
+          "type": "bitmap",
+          "name": "PRESENT_SWISS_PROTECTED",
+          "file": "images/emery/present_swiss_protected.png"
+        },
+        {
+          "type": "bitmap",
           "name": "FUTURE",
           "file": "images/emery/future.png"
         },
@@ -42,7 +52,8 @@
       "ShowDate": 2,
       "ShowTemperature": 3,
       "Temperature": 4,
-      "WeatherRequest": 5
+      "WeatherRequest": 5,
+      "ShowSwissEmblem": 6
     },
     "enableMultiJS": true,
     "displayName": "past-present-future",
