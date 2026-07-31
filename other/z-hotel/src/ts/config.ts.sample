@@ -1,2 +1,0 @@
-/** Url to data */
-export const s3Url = '';

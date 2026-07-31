@@ -1,6 +1,0 @@
-build
-.lock-waf*
-*.DS_Store
-assets
-dist.zip
-node_modules
