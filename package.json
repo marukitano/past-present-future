@@ -81,5 +81,6 @@
   },
   "contributors": [
     "marukitano"
-  ]
+  ],
+  "description": "A playful Past / Present / Future watchface for Pebble Time 2 with animated time changes, weather, themes and a Swiss signature."
 }

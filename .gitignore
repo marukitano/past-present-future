@@ -4,3 +4,11 @@ node_modules/
 *.pbw
 *.pyc
 __pycache__/
+.venv/
+venv/
+*.py
+*.py[cod]
+.pytest_cache/
+.mypy_cache/
+.DS_Store
+Thumbs.db
