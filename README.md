@@ -2,9 +2,9 @@
 
 <p align="center">
   <img
-    src="screenshot.png"
+    src="docs/store-preview.jpg"
     alt="Past Present Future on Pebble Time 2"
-    width="200"
+    width="600"
   >
 </p>
 
