@@ -2,7 +2,7 @@
 
 <p align="center">
   <img
-    src="docs/store-preview.jpg"
+    src="docs/past-present-future.png"
     alt="Past Present Future on Pebble Time 2"
     width="600"
   >
